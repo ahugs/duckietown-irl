@@ -12,6 +12,7 @@ from pathlib import Path
 import hydra
 import numpy as np
 import torch
+import wandb
 from dataclasses import dataclass
 
 import src.utils.utils as utils
@@ -49,7 +50,11 @@ class Workspace:
 
     def setup(self):
         # create logger
+        wandb.tensorboard.patch(root_logdir=f"{self.work_dir}")
+        self.wandb_run = wandb.init()
+
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
+
         # create envs
         self.train_env = hydra.utils.call(self.cfg.env, _recursive_=False)
 
@@ -72,7 +77,7 @@ class Workspace:
         self._replay_iter = None
 
         self.video_recorder = VideoRecorder(
-            self.work_dir if self.cfg.save_video else None)
+            self.work_dir if self.cfg.save_video else None, wrun=self.wandb_run)
         self.train_video_recorder = TrainVideoRecorder(
             self.work_dir if self.cfg.save_train_video else None)
 

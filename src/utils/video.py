@@ -5,10 +5,11 @@
 import cv2
 import imageio
 import numpy as np
+import wandb
 
 
 class VideoRecorder:
-    def __init__(self, root_dir, render_size=256, fps=20):
+    def __init__(self, root_dir, render_size=256, fps=20, wrun=None):
         if root_dir is not None:
             self.save_dir = root_dir / 'eval_video'
             self.save_dir.mkdir(exist_ok=True)
@@ -18,6 +19,7 @@ class VideoRecorder:
         self.render_size = render_size
         self.fps = fps
         self.frames = []
+        self.wrun = wrun
 
     def init(self, env, enabled=True):
         self.frames = []
@@ -38,6 +40,8 @@ class VideoRecorder:
         if self.enabled:
             path = self.save_dir / file_name
             imageio.mimsave(str(path), self.frames, fps=self.fps)
+            if self.wrun is not None:
+                self.wrun.log({"video": wandb.Video(str(path))})
 
 
 class TrainVideoRecorder:
