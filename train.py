@@ -6,29 +6,28 @@ import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
 
 import os
-os.environ['MKL_SERVICE_FORCE_INTEL'] = '1'
-os.environ['MUJOCO_GL'] = 'egl'
 
 from pathlib import Path
 
 import hydra
 import numpy as np
 import torch
-from dm_env import specs
+from dataclasses import dataclass
 
-import dmc
-import utils
-from logger import Logger
-from replay_buffer import ReplayBufferStorage, make_replay_loader
-from video import TrainVideoRecorder, VideoRecorder
+import src.utils.utils as utils
+from src.utils.logger import Logger
+from src.utils.replay_buffer import ReplayBufferStorage, make_replay_loader
+from src.utils.video import TrainVideoRecorder, VideoRecorder
+from src.envs.duckietown_env import make_duckietown
+from src.envs import specs
 
 torch.backends.cudnn.benchmark = True
 
 
-def make_agent(obs_spec, action_spec, cfg):
-    cfg.obs_shape = obs_spec.shape
-    cfg.action_shape = action_spec.shape
-    return hydra.utils.instantiate(cfg)
+def make_agent(env, obs_shape, action_shape, cfg):
+    cfg.obs_shape = obs_shape
+    cfg.action_shape = action_shape
+    return hydra.utils.instantiate(cfg, env=env)
 
 
 class Workspace:
@@ -41,8 +40,8 @@ class Workspace:
         self.device = torch.device(cfg.device)
         self.setup()
 
-        self.agent = make_agent(self.train_env.observation_spec(),
-                                self.train_env.action_spec(),
+        self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
+                                self.train_env.action_space.shape,
                                 self.cfg.agent)
         self.timer = utils.Timer()
         self._global_step = 0
@@ -52,15 +51,16 @@ class Workspace:
         # create logger
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
         # create envs
-        self.train_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-                                  self.cfg.action_repeat, self.cfg.seed)
-        self.eval_env = dmc.make(self.cfg.task_name, self.cfg.frame_stack,
-                                 self.cfg.action_repeat, self.cfg.seed)
+        self.train_env = hydra.utils.call(self.cfg.env, _recursive_=False)
+
+        self.eval_env = hydra.utils.call(self.cfg.env, _recursive_=False)
+
         # create replay buffer
-        data_specs = (self.train_env.observation_spec(),
-                      self.train_env.action_spec(),
+        data_specs = (specs.Array(self.train_env.observation_space.shape, np.uint8, 'observation'),
+                      specs.Array(self.train_env.action_space.shape, np.float32, 'action'),
                       specs.Array((1,), np.float32, 'reward'),
-                      specs.Array((1,), np.float32, 'discount'))
+                      specs.Array((1,), np.bool, 'done'))
+        print(data_specs)
 
         self.replay_storage = ReplayBufferStorage(data_specs,
                                                   self.work_dir / 'buffer')
@@ -87,7 +87,7 @@ class Workspace:
 
     @property
     def global_frame(self):
-        return self.global_step * self.cfg.action_repeat
+        return self.global_step * self.cfg.env.action_repeat
 
     @property
     def replay_iter(self):
@@ -100,16 +100,17 @@ class Workspace:
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
 
         while eval_until_episode(episode):
-            time_step = self.eval_env.reset()
+            obs = self.eval_env.reset()
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
-            while not time_step.last():
+            done = False
+            while not done:
                 with torch.no_grad(), utils.eval_mode(self.agent):
-                    action = self.agent.act(time_step.observation,
+                    action = self.agent.act(obs,
                                             self.global_step,
                                             eval_mode=True)
-                time_step = self.eval_env.step(action)
+                obs, reward, done, _ = self.eval_env.step(action)
                 self.video_recorder.record(self.eval_env)
-                total_reward += time_step.reward
+                total_reward += reward
                 step += 1
 
             episode += 1
@@ -117,33 +118,36 @@ class Workspace:
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
-            log('episode_length', step * self.cfg.action_repeat / episode)
+            log('episode_length', step * self.cfg.env.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
 
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
-                                       self.cfg.action_repeat)
+                                       self.cfg.env.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
-                                      self.cfg.action_repeat)
+                                      self.cfg.env.action_repeat)
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
-                                      self.cfg.action_repeat)
+                                      self.cfg.env.action_repeat)
 
         episode_step, episode_reward = 0, 0
-        time_step = self.train_env.reset()
-        self.replay_storage.add(time_step)
-        self.train_video_recorder.init(time_step.observation)
+        obs = self.train_env.reset()
+        self.replay_storage.add(observation=obs, 
+                                action=np.array([np.nan]*self.train_env.action_space.shape[0], dtype=np.float32), 
+                                reward=np.array([0], dtype=np.float32), done=np.array([False]))
+        self.train_video_recorder.init(obs)
         metrics = None
+        done = False
         while train_until_step(self.global_step):
-            if time_step.last():
+            if done:
                 self._global_episode += 1
                 self.train_video_recorder.save(f'{self.global_frame}.mp4')
                 # wait until all the metrics schema is populated
                 if metrics is not None:
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
-                    episode_frame = episode_step * self.cfg.action_repeat
+                    episode_frame = episode_step * self.cfg.env.action_repeat
                     with self.logger.log_and_dump_ctx(self.global_frame,
                                                       ty='train') as log:
                         log('fps', episode_frame / elapsed_time)
@@ -155,9 +159,11 @@ class Workspace:
                         log('step', self.global_step)
 
                 # reset env
-                time_step = self.train_env.reset()
-                self.replay_storage.add(time_step)
-                self.train_video_recorder.init(time_step.observation)
+                obs = self.train_env.reset()
+                self.replay_storage.add(observation=obs, 
+                                        action=np.array([np.nan]*self.train_env.action_space.shape[0], dtype=np.float32), 
+                                reward=np.array([0], dtype=np.float32), done=np.array([False]))
+                self.train_video_recorder.init(obs)
                 # try to save snapshot
                 if self.cfg.save_snapshot:
                     self.save_snapshot()
@@ -172,9 +178,10 @@ class Workspace:
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
-                action = self.agent.act(time_step.observation,
+                action = self.agent.act(obs,
                                         self.global_step,
                                         eval_mode=False)
+                # print(action)
 
             # try to update the agent
             if not seed_until_step(self.global_step):
@@ -182,10 +189,11 @@ class Workspace:
                 self.logger.log_metrics(metrics, self.global_frame, ty='train')
 
             # take env step
-            time_step = self.train_env.step(action)
-            episode_reward += time_step.reward
-            self.replay_storage.add(time_step)
-            self.train_video_recorder.record(time_step.observation)
+            obs, reward, done, info = self.train_env.step(action)
+            episode_reward += reward
+            self.replay_storage.add(observation=obs, reward=np.array([reward], dtype=np.float32), 
+                                    action=action, done=np.array([done]))
+            self.train_video_recorder.record(obs)
             episode_step += 1
             self._global_step += 1
 
