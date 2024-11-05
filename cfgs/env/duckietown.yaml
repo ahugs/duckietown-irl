@@ -1,0 +1,13 @@
+_target_: src.envs.duckietown_env.make_duckietown
+map_name: small_loop
+action_repeat: 2
+seed: 0
+image_size: 84
+episode_length: 1000
+accept_start_angle_deg: 4
+wrappers:
+  - _target_: src.envs.gym_wrappers.ChannelFirstWrapper
+  - _target_: src.envs.gym_wrappers.FrameStackWrapper
+    num_frames: 3
+  - _target_: src.envs.gym_wrappers.NotInLaneReward
+  - _target_: src.envs.gym_wrappers.LateralVelocityReward
