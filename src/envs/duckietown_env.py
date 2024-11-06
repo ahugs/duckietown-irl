@@ -17,7 +17,7 @@ class DuckietownEnv(Simulator):
         super().__init__(*args, **kwargs)
         
     def valid_pose(self, pos, angle):
-        super()._valid_pose(pos, angle)
+        return super()._valid_pose(pos, angle)
                          
     def step(self, action):
         obs, _, done, info = super().step(action)

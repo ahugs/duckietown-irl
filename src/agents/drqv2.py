@@ -216,7 +216,7 @@ class DrQV2Agent:
 
         stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
-        action = dist.sample(clip=self.stddev_clip)
+        action = dist.mean #dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
