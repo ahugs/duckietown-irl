@@ -35,3 +35,4 @@ pipdeptree
 typing-extensions
 torchvision
 tensorboard
+wandb

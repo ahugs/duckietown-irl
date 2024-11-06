@@ -167,9 +167,9 @@ class DrQV2Agent:
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
-        if self.normalize_obs:
-            obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-                    / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
+        # if self.normalize_obs:
+        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
+        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
         obs = self.encoder(obs.unsqueeze(0))
 
         stddev = utils.schedule(self.stddev_schedule, step)
@@ -182,7 +182,7 @@ class DrQV2Agent:
                 action.uniform_(-1.0, 1.0)
         return action.cpu().numpy()[0]
 
-    def update_critic(self, obs, action, reward, discount, next_obs, step):
+    def update_critic(self, obs, action, reward, done, discount, next_obs, step):
         metrics = dict()
 
         with torch.no_grad():
@@ -191,7 +191,7 @@ class DrQV2Agent:
             next_action = dist.sample(clip=self.stddev_clip)
             target_Q1, target_Q2 = self.critic_target(next_obs, next_action)
             target_V = torch.min(target_Q1, target_Q2)
-            target_Q = reward + (discount * target_V)
+            target_Q = reward + (1-done.to(torch.uint8)) * (discount * target_V)
 
         Q1, Q2 = self.critic(obs, action)
         critic_loss = F.mse_loss(Q1, target_Q) + F.mse_loss(Q2, target_Q)
@@ -242,11 +242,11 @@ class DrQV2Agent:
             return metrics
 
         batch = next(replay_iter)
-        obs, action, reward, discount, next_obs = utils.to_torch(
+        obs, action, reward, done, discount, next_obs = utils.to_torch(
             batch, self.device)
-        if self.normalize_obs:
-            obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-                    / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
+        # if self.normalize_obs:
+        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
+        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
 
         # augment
         obs = self.aug(obs.float())
@@ -261,7 +261,7 @@ class DrQV2Agent:
 
         # update critic
         metrics.update(
-            self.update_critic(obs, action, reward, discount, next_obs, step))
+            self.update_critic(obs, action, reward, done, discount, next_obs, step))
 
         # update actor
         metrics.update(self.update_actor(obs.detach(), step))

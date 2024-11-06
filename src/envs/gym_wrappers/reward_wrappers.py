@@ -12,6 +12,22 @@ from matplotlib import pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+class SpeedReward(gym.RewardWrapper):
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+
+    def reward(self, reward):
+        return reward + self.speed
+
+class InvalidPoseReward(gym.RewardWrapper):
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+
+    def reward(self, reward):
+        if not self.valid_pose(self.cur_pos, self.cur_angle):
+            return reward - 100
+        else:
+            return reward
 
 class NotInLaneReward(gym.RewardWrapper):
     def __init__(self, env: gym.Env):

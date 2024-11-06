@@ -9,5 +9,5 @@ wrappers:
   - _target_: src.envs.gym_wrappers.ChannelFirstWrapper
   - _target_: src.envs.gym_wrappers.FrameStackWrapper
     num_frames: 3
-  - _target_: src.envs.gym_wrappers.NotInLaneReward
+reward_wrappers:
   - _target_: src.envs.gym_wrappers.LateralVelocityReward

@@ -48,4 +48,7 @@ ENV PYTHONPATH=/workspaces:$PYTHONPATH
 RUN mkdir /scratch
 
 WORKDIR /workspaces
-CMD ["/runxvfb.sh"]
+ENTRYPOINT ["/runxvfb.sh"]
+CMD ["/bin/bash"]
+
+

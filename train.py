@@ -2,9 +2,15 @@
 #
 # This source code is licensed under the MIT license found in the
 # LICENSE file in the root directory of this source tree.
+# import sys
+# import os
+# sys.stderr.write(f"DISPLAY: {os.environ['DISPLAY']}\n")
+
 import warnings
 warnings.filterwarnings('ignore', category=DeprecationWarning)
-
+# import subprocess
+# xvfb_subproc = subprocess.Popen(("Xvfb", os.environ["DISPLAY"], '-screen', '0', '1024x768x24', '-ac',  
+#                                     '+extension',  'GLX',  '+render', '-noreset'))
 import os
 
 from pathlib import Path
@@ -13,6 +19,8 @@ import hydra
 import numpy as np
 import torch
 import wandb
+from omegaconf import OmegaConf
+
 from dataclasses import dataclass
 
 import src.utils.utils as utils
@@ -51,7 +59,8 @@ class Workspace:
     def setup(self):
         # create logger
         wandb.tensorboard.patch(root_logdir=f"{self.work_dir}")
-        self.wandb_run = wandb.init()
+        
+        self.wandb_run = wandb.init(config=OmegaConf.to_container(self.cfg, resolve=True))
 
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
 
