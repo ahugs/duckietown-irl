@@ -122,7 +122,8 @@ class Critic(nn.Module):
 
 
 class DrQV2Agent:
-    def __init__(self, env, obs_shape, action_shape, device, lr, feature_dim,
+    def __init__(self, env, obs_shape, action_shape, device, actor_lr, critic_lr, 
+                 encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
                  normalize_obs):
@@ -148,9 +149,9 @@ class DrQV2Agent:
         self.critic_target.load_state_dict(self.critic.state_dict())
 
         # optimizers
-        self.encoder_opt = torch.optim.Adam(self.encoder.parameters(), lr=lr)
-        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=lr)
-        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=lr)
+        self.encoder_opt = torch.optim.Adam(self.encoder.parameters(), lr=encoder_lr)
+        self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
+        self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
 
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
@@ -216,7 +217,7 @@ class DrQV2Agent:
 
         stddev = utils.schedule(self.stddev_schedule, step)
         dist = self.actor(obs, stddev)
-        action = dist.mean #dist.sample(clip=self.stddev_clip)
+        action = dist.sample(clip=self.stddev_clip)
         log_prob = dist.log_prob(action).sum(-1, keepdim=True)
         Q1, Q2 = self.critic(obs, action)
         Q = torch.min(Q1, Q2)
