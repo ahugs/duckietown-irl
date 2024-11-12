@@ -14,7 +14,7 @@ num_eval_episodes: 10
 # snapshot
 save_snapshot: false
 # replay buffer
-replay_buffer_size: 1000000
+replay_buffer_size: 500000
 replay_buffer_num_workers: 1
 nstep: 3
 batch_size: 128

@@ -3,7 +3,7 @@ map_name: small_loop
 action_repeat: 2
 seed: 0
 image_size: 84
-episode_length: 1000
+episode_length: 2000
 accept_start_angle_deg: 4
 wrappers:
   - _target_: src.envs.gym_wrappers.ChannelFirstWrapper
