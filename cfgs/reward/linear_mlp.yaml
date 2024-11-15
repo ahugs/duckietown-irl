@@ -1,0 +1,25 @@
+_target_: "src.rewards.reward_learner.RewardLearner"
+steps_per_epoch: 1
+batch_size: 5000
+regularization_coeff: 0.1
+net:
+  _target_: "src.utils.net.continuous.Reward"
+  initialize_zero: True
+  preprocess_net:
+    _target_: "tianshou.utils.net.common.Net"
+    hidden_sizes: [64,64]
+    concat: True
+    norm_layer: null
+  output_activation: 
+    _target_: hydra.utils.get_class
+    path: torch.nn.LeakyReLU
+  clip_range: null
+  output_transform: null
+optim:
+  _target_: "torch.optim.Adam"
+  lr: 0.02
+  weight_decay: 0.001
+lr_scheduler: null
+is_constraint: false
+loss_transform: null
+
