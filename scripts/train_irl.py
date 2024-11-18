@@ -20,7 +20,6 @@ import numpy as np
 import torch
 import wandb
 from omegaconf import OmegaConf
-
 from dataclasses import dataclass
 
 import src.utils.utils as utils
@@ -49,9 +48,6 @@ class Workspace:
         self.device = torch.device(cfg.device)
         self.setup()
 
-        self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
-                                self.train_env.action_space.shape,
-                                self.cfg.agent)
         self.timer = utils.Timer()
         self._global_step = 0
         self._global_episode = 0
@@ -69,22 +65,35 @@ class Workspace:
 
         self.eval_env = hydra.utils.call(self.cfg.env, _recursive_=False)
 
+        # create agent
+        self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
+                                    self.train_env.action_space.shape,
+                                    self.cfg.agent)
+
         # create learnt reward
-        expert_buffer = make_replay_loader()
+        if self.cfg.use_joint_encoder:
+            encoder = self.agent.encoder
+            state_shape = self.agent.encoder.repr_dim
+        else:
+            raise NotImplementedError
+
         reward_net = hydra.utils.instantiate(
             self.cfg.reward.net,
             preprocess_net={
-                "state_shape": self.cfg.env.observation_space.shape,
-                "action_shape": self.cfg.env.action_space.shape,
+                "state_shape": state_shape,
+                "action_shape": self.train_env.action_space.shape,
                 "device": self.cfg.device,
             },
             device=self.cfg.device,
         ).to(self.cfg.device)
-        self.reward_optim = hydra.utils.instantiate(self.cfg.reward.optim, reward_net.parameters())
-        self.reward = hydra.utils.instantiate(self.cfg.reward, optim=self.reward_optim,
-                                              net=reward_net, expert_buffer=expert_buffer)
 
-        # create replay buffer
+
+        self.reward_optim = hydra.utils.instantiate(self.cfg.reward.optim, reward_net.parameters())
+        self.reward = hydra.utils.instantiate(self.cfg.reward, optim=self.reward_optim, net=reward_net,
+                                              encoder=encoder)
+
+
+        # create replay buffers
         data_specs = (specs.Array(self.train_env.observation_space.shape, np.uint8, 'observation'),
                       specs.Array(self.train_env.action_space.shape, np.float32, 'action'),
                       specs.Array((1,), np.float32, 'reward'),
@@ -97,8 +106,26 @@ class Workspace:
         self.replay_loader = make_replay_loader(
             self.work_dir / 'buffer', self.cfg.replay_buffer_size,
             self.cfg.batch_size, self.cfg.replay_buffer_num_workers,
-            self.cfg.save_snapshot, self.cfg.nstep, self.cfg.discount)
+            self.cfg.save_snapshot, self.cfg.nstep, self.cfg.discount,
+            reward_net, encoder=encoder, concat=True)
+        
+
+        self.eval_replay_storage = ReplayBufferStorage(data_specs,
+                                                        self.work_dir / 'eval_buffer')
+
+        self.eval_replay_loader = make_replay_loader(
+            self.work_dir / 'eval_buffer', self.cfg.num_eval_episodes * self.cfg.env.episode_length,
+            self.cfg.reward.batch_size, self.cfg.replay_buffer_num_workers,
+            False, 1, self.cfg.discount)
+        
+        self.expert_replay_loader = make_replay_loader(
+            Path(self.cfg.expert_dir), self.cfg.replay_buffer_size,
+            self.cfg.reward.batch_size, self.cfg.replay_buffer_num_workers, 
+            True, 1, self.cfg.discount)
+        
         self._replay_iter = None
+        self._expert_replay_iter = None
+        self._eval_replay_iter = None
 
         self.video_recorder = VideoRecorder(
             self.work_dir if self.cfg.save_video else None, wrun=self.wandb_run)
@@ -123,6 +150,18 @@ class Workspace:
         if self._replay_iter is None:
             self._replay_iter = iter(self.replay_loader)
         return self._replay_iter
+    
+    @property
+    def eval_replay_iter(self):
+        if self._eval_replay_iter is None:
+            self._eval_replay_iter = iter(self.eval_replay_loader)
+        return self._eval_replay_iter
+    
+    @property
+    def expert_replay_iter(self):
+        if self._expert_replay_iter is None:
+            self._expert_replay_iter = iter(self.expert_replay_loader)
+        return self._expert_replay_iter
 
     def eval(self):
         step, episode, total_reward = 0, 0, 0
@@ -130,15 +169,29 @@ class Workspace:
 
         while eval_until_episode(episode):
             obs = self.eval_env.reset()
+            self.eval_replay_storage.add(observation=obs, 
+                                    action=np.array([np.nan]*self.train_env.action_space.shape[0], dtype=np.float32), 
+                                    reward=np.array([0], dtype=np.float32), done=np.array([False]))
             self.video_recorder.init(self.eval_env, enabled=(episode == 0))
             done = False
+            info_sums =  None
             while not done:
                 with torch.no_grad(), utils.eval_mode(self.agent):
                     action = self.agent.act(obs,
                                             self.global_step,
                                             eval_mode=True)
-                obs, reward, done, _ = self.eval_env.step(action)
+                obs, reward, done, info = self.eval_env.step(action) 
+           
+                self.eval_replay_storage.add(observation=obs, reward=np.array([reward], dtype=np.float32), 
+                                             action=action, done=np.array([done]))
                 self.video_recorder.record(self.eval_env)
+
+                if info_sums is None:
+                    info_sums = info
+                    info_sums.pop('Simulator')
+                else:
+                    for key in info_sums.keys():
+                        info_sums[key] += info[key]
                 total_reward += reward
                 step += 1
 
@@ -150,6 +203,8 @@ class Workspace:
             log('episode_length', step * self.cfg.env.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
+            for key in info_sums.keys():
+                log(key, info_sums[key] / episode)
 
     def train(self):
         # predicates
@@ -157,8 +212,8 @@ class Workspace:
                                        self.cfg.env.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
                                       self.cfg.env.action_repeat)
-        eval_every_step = utils.Every(self.cfg.eval_every_frames,
-                                      self.cfg.env.action_repeat)
+        eval_every_episode = utils.Every(self.cfg.eval_every_episodes)
+        update_reward_every_episode = utils.Every(self.cfg.update_reward_every_episodes)
 
         episode_step, episode_reward = 0, 0
         obs = self.train_env.reset()
@@ -187,6 +242,15 @@ class Workspace:
                         log('buffer_size', len(self.replay_storage))
                         log('step', self.global_step)
 
+                if eval_every_episode(self.global_episode):
+                    self.logger.log('eval_total_time', self.timer.total_time(),
+                                    self.global_frame)
+                    self.eval()
+
+                if (self.global_step > self.cfg.warmstart_reward_steps) and update_reward_every_episode(self.global_episode):
+                    reward_metrics = self.reward.update(self.expert_replay_iter, self.eval_replay_iter)
+                    self.logger.log_metrics(reward_metrics, self.global_frame, ty='reward')
+
                 # reset env
                 obs = self.train_env.reset()
                 self.replay_storage.add(observation=obs, 
@@ -198,12 +262,6 @@ class Workspace:
                     self.save_snapshot()
                 episode_step = 0
                 episode_reward = 0
-
-            # try to evaluate
-            if eval_every_step(self.global_step):
-                self.logger.log('eval_total_time', self.timer.total_time(),
-                                self.global_frame)
-                self.eval()
 
             # sample action
             with torch.no_grad(), utils.eval_mode(self.agent):
@@ -241,9 +299,10 @@ class Workspace:
             self.__dict__[k] = v
 
 
-@hydra.main(config_path='cfgs', config_name='config')
+@hydra.main(config_path='../cfgs', config_name='irl')
 def main(cfg):
-    from train import Workspace as W
+    from scripts.train_irl import Workspace as W
+    torch.multiprocessing.set_start_method('spawn')
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

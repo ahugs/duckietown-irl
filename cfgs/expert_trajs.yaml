@@ -1,0 +1,8 @@
+defaults:
+  - env: duckietown
+  - _self_
+
+num_trajs: 50
+save_path: /workspaces/duckietown-irl/data/${env.map_name}/
+env:
+  action_repeat: 1

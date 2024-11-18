@@ -81,7 +81,7 @@ class ReplayBufferStorage:
 
 class ReplayBuffer(IterableDataset):
     def __init__(self, replay_dir, max_size, num_workers, nstep, discount,
-                 fetch_every, save_snapshot):
+                 fetch_every, save_snapshot, reward_net=None, encoder=None, concat=True):
         self._replay_dir = replay_dir
         self._size = 0
         self._max_size = max_size
@@ -93,6 +93,9 @@ class ReplayBuffer(IterableDataset):
         self._fetch_every = fetch_every
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
+        self._reward_net = reward_net
+        self._encoder = encoder
+        self._concat = concat 
 
     def _sample_episode(self):
         eps_fn = random.choice(self._episode_fns)
@@ -159,6 +162,16 @@ class ReplayBuffer(IterableDataset):
         discount = np.ones_like(episode['reward'][idx])
         for i in range(self._nstep):
             step_reward = episode['reward'][idx + i]
+            if self._reward_net is not None:
+                with torch.no_grad():
+                    step_obs = torch.as_tensor(episode['observation'][idx+i-1], device=self._reward_net.device).unsqueeze(0)
+                    step_action = torch.as_tensor(episode['action'][idx+i], device=self._reward_net.device).unsqueeze(0)
+                    step_obs = self._encoder(step_obs)
+                    input = torch.cat(
+                            [step_obs, step_action if self._concat else []],
+                            axis=1,
+                    )
+                    step_reward -= self._reward_net(input).squeeze().detach().cpu().numpy()
             done = episode['done'][idx + i]
             reward += discount * step_reward
             discount *= discount * self._discount
@@ -178,7 +191,8 @@ def _worker_init_fn(worker_id):
 
 
 def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
-                       save_snapshot, nstep, discount):
+                       save_snapshot, nstep, discount, reward_net=None,
+                       encoder=None, concat=True):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(replay_dir,
@@ -187,7 +201,10 @@ def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
                             nstep,
                             discount,
                             fetch_every=1000,
-                            save_snapshot=save_snapshot)
+                            save_snapshot=save_snapshot,
+                            reward_net=reward_net,
+                            encoder=encoder,
+                            concat=concat)
 
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,

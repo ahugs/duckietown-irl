@@ -1,7 +1,4 @@
 from abc import ABC
-from collections.abc import Sequence
-from typing import Any, List, Union, Optional, Type, Callable
-from copy import deepcopy
 
 import numpy as np
 import torch
@@ -9,11 +6,42 @@ from torch import nn
 
 from tianshou.utils.net.common import (
     MLP,
-    Net,
-    TLinearLayer,
-    get_output_dim,
 )
 
+def getattr_with_matching_alt_value(obj, attr_name, alt_value):
+    """Gets the given attribute from the given object or takes the alternative value if it is not present.
+    If both are present, they are required to match.
+
+    :param obj: the object from which to obtain the attribute value
+    :param attr_name: the attribute name
+    :param alt_value: the alternative value for the case where the attribute is not present, which cannot be None
+        if the attribute is not present
+    :return: the value
+    """
+    v = getattr(obj, attr_name)
+    if v is not None:
+        if alt_value is not None and v != alt_value:
+            raise ValueError(
+                f"Attribute '{attr_name}' of {obj} is defined ({v}) but does not match alt. value ({alt_value})",
+            )
+        return v
+    else:
+        if alt_value is None:
+            raise ValueError(
+                f"Attribute '{attr_name}' of {obj} is not defined and no fallback given",
+            )
+        return alt_value
+
+
+def get_output_dim(module: nn.Module, alt_value) -> int:
+    """Retrieves value the `output_dim` attribute of the given module or uses the given alternative value if the attribute is not present.
+    If both are present, they must match.
+
+    :param module: the module
+    :param alt_value: the alternative value
+    :return: the value
+    """
+    return getattr_with_matching_alt_value(module, "output_dim", alt_value)
 
 class Reward(nn.Module, ABC):
     """Simple reward network.
@@ -36,17 +64,15 @@ class Reward(nn.Module, ABC):
 
     def __init__(
         self,
-        preprocess_net: nn.Module | Net,
-        hidden_sizes: Sequence[int] = (),
-        device: str | int | torch.device = "cpu",
-        preprocess_net_output_dim: int | None = None,
-        linear_layer: TLinearLayer = nn.Linear,
-        output_activation: nn.Module = nn.Identity,
-        output_scaling: float = 1.0,
-        clip_range: List[float] = [-np.inf, np.inf],
-        flatten_input: bool = True,
-        output_transform: Callable[[torch.Tensor], torch.Tensor] | None = None,
-        initialize_zero: bool = False,
+        preprocess_net,
+        hidden_sizes= (),
+        device = "cpu",
+        preprocess_net_output_dim = None,
+        output_activation= nn.Identity,
+        output_scaling = 1.0,
+        clip_range = [-np.inf, np.inf],
+        output_transform = None,
+        initialize_zero = False,
     ) -> None:
         super().__init__()
         self.device = device
@@ -57,10 +83,7 @@ class Reward(nn.Module, ABC):
             input_dim,
             1,
             hidden_sizes,
-            device=self.device,
-            linear_layer=linear_layer,
-            flatten_input=flatten_input,
-        )
+            device=self.device,        )
         self.output_activation = output_activation()
         assert not (output_scaling != 1.0 and output_transform is not None)
         if output_scaling != 1.0:
@@ -80,8 +103,8 @@ class Reward(nn.Module, ABC):
 
     def forward(
         self,
-        obs: np.ndarray | torch.Tensor,
-        info: dict[str, Any] | None = None,
+        obs,
+        info=None,
     ) -> torch.Tensor:
         """Mapping: (s_B, a_B) -> Q(s, a)_B."""
         obs = torch.as_tensor(

@@ -1,6 +1,6 @@
 _target_: "src.rewards.reward_learner.RewardLearner"
-steps_per_epoch: 1
-batch_size: 5000
+steps_per_epoch: 5
+batch_size: 552
 regularization_coeff: 0.1
 net:
   _target_: "src.utils.net.continuous.Reward"
@@ -17,9 +17,10 @@ net:
   output_transform: null
 optim:
   _target_: "torch.optim.Adam"
-  lr: 0.02
+  lr: 0.00001
   weight_decay: 0.001
 lr_scheduler: null
-is_constraint: false
+is_constraint: true
 loss_transform: null
+encoder: ???
 

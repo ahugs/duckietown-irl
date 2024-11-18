@@ -8,7 +8,7 @@ class RewardLearner:
         self,
         net,
         optim,
-        expert_buffer,
+        encoder,
         steps_per_epoch=5,
         batch_size=64,
         regularization_coeff=1,
@@ -18,32 +18,40 @@ class RewardLearner:
     ):
         self.net = net
         self.optim = optim
-        self.expert_buffer = expert_buffer
         self.steps_per_epoch = steps_per_epoch
         self.batch_size = batch_size
         self.regularization_coeff = regularization_coeff
         self.lr_scheduler = lr_scheduler
         self.is_constraint = is_constraint
         self.loss_transform = loss_transform
+        self.encoder = encoder if encoder is not None else torch.nn.Identity()
+        self.device = next(self.net.parameters()).device
 
-    def update(self, learner_buffer):
+    def update(self, expert_replay_iter, learner_replay_iter):
         self.net.train()
 
-        for _ in (pbar := tqdm(range(self.steps_per_epoch), desc='Reward Learning')):
+        pbar = tqdm(range(self.steps_per_epoch), desc='Reward Learning')
+        for _ in (pbar):
 
-            expert_batch, _ = self.expert_buffer.sample(self.batch_size)
-            learner_batch, _ = learner_buffer.sample(self.batch_size)
+            expert_obs, expert_action, _, _, _, _ = next(expert_replay_iter)
+            with torch.no_grad():
+                expert_obs = self.encoder(expert_obs.to(self.device))
+            expert_action = expert_action.to(self.device)  
+            learner_obs, learner_action, _, _, _, _ = next(learner_replay_iter)
+            learner_action = learner_action.to(self.device)
+            with torch.no_grad():
+                learner_obs = self.encoder(learner_obs.to(self.device))
 
             input_size = next(self.net.parameters()).size()
             concat = False
-            if expert_batch.obs.shape[-1] < input_size[-1]:
+            if expert_obs.shape[-1] < input_size[-1]:
                 concat = True
-            expert_input = np.concatenate(
-                [expert_batch.obs, expert_batch.act if concat else []],
+            expert_input = torch._cat(
+                [expert_obs, expert_action if concat else []],
                 axis=1,
             )
-            learner_input = np.concatenate(
-                [learner_batch.obs, learner_batch.act if concat else []],
+            learner_input = torch.cat(
+                [learner_obs, learner_action if concat else []],
                 axis=1,
             )
 
