@@ -153,11 +153,17 @@ class DrQV2Agent:
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
 
+        self.reward_net = None
+
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
         self.train()
         self.critic_target.train()
+
+
+    def set_reward_network(self, net):
+        self.reward_net = net
 
     def train(self, training=True):
         self.training = training
@@ -236,6 +242,18 @@ class DrQV2Agent:
 
         return metrics
 
+    def process_batch(self, batch):
+        obs, action, reward, done, discount, next_obs = batch
+        if self.reward_net is not None:
+            with torch.no_grad():
+                step_obs = obs.reshape(-1, *obs.shape[2:])
+                step_action = action.reshape(-1, *action.shape[2:])
+                step_obs = self.encoder(step_obs)
+                input = torch.cat([step_obs, step_action], axis=1)
+                new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
+        nstep_reward = (discount[:,:-1,...].reshape(reward.shape) * (reward + new_reward)).sum(dim=1).to(torch.float32)
+        return obs[:,0,...], action[:,0,...], nstep_reward, done.any(dim=1), discount[:,-1,...].to(torch.float32), next_obs
+        
     def update(self, replay_iter, step):
         metrics = dict()
 
@@ -243,8 +261,9 @@ class DrQV2Agent:
             return metrics
 
         batch = next(replay_iter)
-        obs, action, reward, done, discount, next_obs = utils.to_torch(
-            batch, self.device)
+        batch = utils.to_torch(batch, self.device)
+        obs, action, reward, done, discount, next_obs = self.process_batch(batch)
+
         # if self.normalize_obs:
         #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
         #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))

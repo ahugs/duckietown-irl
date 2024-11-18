@@ -69,14 +69,14 @@ class Workspace:
         self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
                                     self.train_env.action_space.shape,
                                     self.cfg.agent)
-
-        # create learnt reward
+        
+        # create reward learner
         if self.cfg.use_joint_encoder:
             encoder = self.agent.encoder
             state_shape = self.agent.encoder.repr_dim
         else:
             raise NotImplementedError
-
+        
         reward_net = hydra.utils.instantiate(
             self.cfg.reward.net,
             preprocess_net={
@@ -86,12 +86,12 @@ class Workspace:
             },
             device=self.cfg.device,
         ).to(self.cfg.device)
-
-
+        
         self.reward_optim = hydra.utils.instantiate(self.cfg.reward.optim, reward_net.parameters())
         self.reward = hydra.utils.instantiate(self.cfg.reward, optim=self.reward_optim, net=reward_net,
                                               encoder=encoder)
 
+        self.agent.set_reward_network(reward_net)
 
         # create replay buffers
         data_specs = (specs.Array(self.train_env.observation_space.shape, np.uint8, 'observation'),
@@ -106,8 +106,7 @@ class Workspace:
         self.replay_loader = make_replay_loader(
             self.work_dir / 'buffer', self.cfg.replay_buffer_size,
             self.cfg.batch_size, self.cfg.replay_buffer_num_workers,
-            self.cfg.save_snapshot, self.cfg.nstep, self.cfg.discount,
-            reward_net, encoder=encoder, concat=True)
+            self.cfg.save_snapshot, self.cfg.nstep, self.cfg.discount)
         
 
         self.eval_replay_storage = ReplayBufferStorage(data_specs,
@@ -302,7 +301,6 @@ class Workspace:
 @hydra.main(config_path='../cfgs', config_name='irl')
 def main(cfg):
     from scripts.train_irl import Workspace as W
-    torch.multiprocessing.set_start_method('spawn')
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

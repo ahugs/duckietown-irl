@@ -81,7 +81,7 @@ class ReplayBufferStorage:
 
 class ReplayBuffer(IterableDataset):
     def __init__(self, replay_dir, max_size, num_workers, nstep, discount,
-                 fetch_every, save_snapshot, reward_net=None, encoder=None, concat=True):
+                 fetch_every, save_snapshot):
         self._replay_dir = replay_dir
         self._size = 0
         self._max_size = max_size
@@ -93,9 +93,6 @@ class ReplayBuffer(IterableDataset):
         self._fetch_every = fetch_every
         self._samples_since_last_fetch = fetch_every
         self._save_snapshot = save_snapshot
-        self._reward_net = reward_net
-        self._encoder = encoder
-        self._concat = concat 
 
     def _sample_episode(self):
         eps_fn = random.choice(self._episode_fns)
@@ -155,28 +152,16 @@ class ReplayBuffer(IterableDataset):
         # add +1 for the first dummy transition
         nstep = min(episode_len(episode), self._nstep)
         idx = np.random.randint(0, episode_len(episode) - nstep + 1) + 1
-        obs = episode['observation'][idx - 1]
-        action = episode['action'][idx]
-        next_obs = episode['observation'][idx + self._nstep - 1]
-        reward = np.zeros_like(episode['reward'][idx])
-        discount = np.ones_like(episode['reward'][idx])
-        for i in range(self._nstep):
-            step_reward = episode['reward'][idx + i]
-            if self._reward_net is not None:
-                with torch.no_grad():
-                    step_obs = torch.as_tensor(episode['observation'][idx+i-1], device=self._reward_net.device).unsqueeze(0)
-                    step_action = torch.as_tensor(episode['action'][idx+i], device=self._reward_net.device).unsqueeze(0)
-                    step_obs = self._encoder(step_obs)
-                    input = torch.cat(
-                            [step_obs, step_action if self._concat else []],
-                            axis=1,
-                    )
-                    step_reward -= self._reward_net(input).squeeze().detach().cpu().numpy()
-            done = episode['done'][idx + i]
-            reward += discount * step_reward
-            discount *= discount * self._discount
-            if done:
-                break
+        obs = episode['observation'][(idx - 1):(idx + nstep -1)]
+        obs.resize((self._nstep,) + obs.shape[1:])
+        next_obs = episode['observation'][idx + nstep -1]
+        action = episode['action'][idx: (idx + nstep)]
+        action.resize((self._nstep,) + action.shape[1:])
+        done = episode['done'][idx + nstep -1]
+        reward = episode['reward'][idx:(idx + nstep)]
+        discount = self._discount ** np.arange(nstep + 1)
+        reward.resize((nstep,) + reward.shape[1:])
+        discount.resize((self._nstep + 1,) + discount.shape[1:])
         return (obs, action, reward, done, discount, next_obs)
 
     def __iter__(self):
@@ -190,9 +175,9 @@ def _worker_init_fn(worker_id):
     random.seed(seed)
 
 
+
 def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
-                       save_snapshot, nstep, discount, reward_net=None,
-                       encoder=None, concat=True):
+                       save_snapshot, nstep, discount):
     max_size_per_worker = max_size // max(1, num_workers)
 
     iterable = ReplayBuffer(replay_dir,
@@ -201,10 +186,7 @@ def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
                             nstep,
                             discount,
                             fetch_every=1000,
-                            save_snapshot=save_snapshot,
-                            reward_net=reward_net,
-                            encoder=encoder,
-                            concat=concat)
+                            save_snapshot=save_snapshot)
 
     loader = torch.utils.data.DataLoader(iterable,
                                          batch_size=batch_size,

@@ -34,10 +34,12 @@ class RewardLearner:
         for _ in (pbar):
 
             expert_obs, expert_action, _, _, _, _ = next(expert_replay_iter)
+            expert_obs, expert_action = expert_obs.squeeze(), expert_action.squeeze()
             with torch.no_grad():
                 expert_obs = self.encoder(expert_obs.to(self.device))
             expert_action = expert_action.to(self.device)  
             learner_obs, learner_action, _, _, _, _ = next(learner_replay_iter)
+            learner_obs, learner_action = learner_obs.squeeze(), learner_action.squeeze()
             learner_action = learner_action.to(self.device)
             with torch.no_grad():
                 learner_obs = self.encoder(learner_obs.to(self.device))
