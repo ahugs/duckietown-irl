@@ -61,9 +61,9 @@ class Workspace:
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
 
         # create envs
-        self.train_env = hydra.utils.call(self.cfg.env, _recursive_=False)
+        self.train_env = hydra.utils.call(self.cfg.train_env, _recursive_=False)
 
-        self.eval_env = hydra.utils.call(self.cfg.env, _recursive_=False)
+        self.eval_env = hydra.utils.call(self.cfg.eval_env, _recursive_=False)
 
         # create agent
         self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
@@ -113,7 +113,7 @@ class Workspace:
                                                         self.work_dir / 'eval_buffer')
 
         self.eval_replay_loader = make_replay_loader(
-            self.work_dir / 'eval_buffer', self.cfg.num_eval_episodes * self.cfg.env.episode_length,
+            self.work_dir / 'eval_buffer', self.cfg.num_eval_episodes * self.cfg.eval_env.episode_length,
             self.cfg.reward.batch_size, self.cfg.replay_buffer_num_workers,
             False, 1, self.cfg.discount)
         
@@ -142,7 +142,7 @@ class Workspace:
 
     @property
     def global_frame(self):
-        return self.global_step * self.cfg.env.action_repeat
+        return self.global_step * self.cfg.train_env.action_repeat
 
     @property
     def replay_iter(self):
@@ -199,7 +199,7 @@ class Workspace:
 
         with self.logger.log_and_dump_ctx(self.global_frame, ty='eval') as log:
             log('episode_reward', total_reward / episode)
-            log('episode_length', step * self.cfg.env.action_repeat / episode)
+            log('episode_length', step * self.cfg.train_env.action_repeat / episode)
             log('episode', self.global_episode)
             log('step', self.global_step)
             for key in info_sums.keys():
@@ -208,9 +208,9 @@ class Workspace:
     def train(self):
         # predicates
         train_until_step = utils.Until(self.cfg.num_train_frames,
-                                       self.cfg.env.action_repeat)
+                                       self.cfg.train_env.action_repeat)
         seed_until_step = utils.Until(self.cfg.num_seed_frames,
-                                      self.cfg.env.action_repeat)
+                                      self.cfg.train_env.action_repeat)
         eval_every_episode = utils.Every(self.cfg.eval_every_episodes)
         update_reward_every_episode = utils.Every(self.cfg.update_reward_every_episodes)
 
@@ -230,7 +230,7 @@ class Workspace:
                 if metrics is not None:
                     # log stats
                     elapsed_time, total_time = self.timer.reset()
-                    episode_frame = episode_step * self.cfg.env.action_repeat
+                    episode_frame = episode_step * self.cfg.train_env.action_repeat
                     with self.logger.log_and_dump_ctx(self.global_frame,
                                                       ty='train') as log:
                         log('fps', episode_frame / elapsed_time)

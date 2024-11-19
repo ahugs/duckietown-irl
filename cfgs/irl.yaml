@@ -1,10 +1,11 @@
 defaults:
   - _self_
-  - env: duckietown
+  - env@train_env: duckietown
+  - env@eval_env: duckietown_eval
   - reward: linear_mlp
   - override hydra/launcher: submitit_local
 
-expert_dir: '/workspaces/duckietown-irl/data/${env.map_name}'
+expert_dir: '/workspaces/duckietown-irl/data/${train_env.map_name}'
 # task settings
 discount: 0.99
 # train settings
