@@ -252,7 +252,7 @@ class DrQV2Agent:
                 input = torch.cat([step_obs, step_action], axis=1)
                 new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
         nstep_reward = (discount[:,:-1,...].reshape(reward.shape) * (reward + new_reward)).sum(dim=1).to(torch.float32)
-        return obs[:,0,...], action[:,0,...], nstep_reward, done.any(dim=1), discount[:,-1,...].to(torch.float32), next_obs
+        return obs[:,0,...], action[:,0,...], nstep_reward, done, discount[:,[-1],...].to(torch.float32), next_obs
         
     def update(self, replay_iter, step):
         metrics = dict()
