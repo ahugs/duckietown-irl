@@ -28,7 +28,7 @@ ENV PATH=/venv/bin:$PATH
 RUN python --version
 
 COPY requirements.txt requirements.txt
-RUN git clone https://github.com/duckietown/gym-duckietown.git
+RUN git clone https://github.com/florenceCloutier/gym-duckietown.git
 
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r requirements.txt 
