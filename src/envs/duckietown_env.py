@@ -24,14 +24,16 @@ class DuckietownEnv(Simulator):
         return obs, 0, done, info
     
 def make_duckietown(map_name, action_repeat, seed, image_size=84, episode_length=1000,
-                    accept_start_angle_deg=4, wrappers=None, reward_wrappers=None):
+                    accept_start_angle_deg=4, wrappers=None, reward_wrappers=None, randomize_maps_on_reset=False):
     max_episode_steps = episode_length
-    env_kwargs = {'map_name': map_name,
-                  'camera_width': image_size,
-                  'camera_height': image_size,
-                  'max_steps': max_episode_steps,
-                  'accept_start_angle_deg': accept_start_angle_deg}
     
+    env_kwargs = {'map_name': map_name,
+                'camera_width': image_size,
+                'camera_height': image_size,
+                'max_steps': max_episode_steps,
+                'accept_start_angle_deg': accept_start_angle_deg, 
+                'randomize_maps_on_reset': randomize_maps_on_reset}
+        
 
     # shorten episode length
 

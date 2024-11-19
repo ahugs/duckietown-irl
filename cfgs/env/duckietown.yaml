@@ -5,6 +5,7 @@ seed: 0
 image_size: 84
 episode_length: 2000
 accept_start_angle_deg: 4
+randomize_maps_on_reset: True
 wrappers:
   - _target_: src.envs.gym_wrappers.ChannelFirstWrapper
   - _target_: src.envs.gym_wrappers.FrameStackWrapper
