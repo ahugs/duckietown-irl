@@ -33,10 +33,10 @@ from src.envs import specs
 torch.backends.cudnn.benchmark = True
 
 
-def make_agent(env, obs_shape, action_shape, cfg):
+def make_agent(obs_shape, action_shape, cfg):
     cfg.obs_shape = obs_shape
     cfg.action_shape = action_shape
-    return hydra.utils.instantiate(cfg, env=env)
+    return hydra.utils.instantiate(cfg)
 
 
 class Workspace:
@@ -49,7 +49,7 @@ class Workspace:
         self.device = torch.device(cfg.device)
         self.setup()
 
-        self.agent = make_agent(self.train_env, self.train_env.observation_space.shape,
+        self.agent = make_agent(self.train_env.observation_space.shape,
                                 self.train_env.action_space.shape,
                                 self.cfg.agent)
         self.timer = utils.Timer()

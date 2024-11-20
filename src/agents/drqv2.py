@@ -122,7 +122,7 @@ class Critic(nn.Module):
 
 
 class DrQV2Agent:
-    def __init__(self, env, obs_shape, action_shape, device, actor_lr, critic_lr, 
+    def __init__(self, obs_shape, action_shape, device, actor_lr, critic_lr, 
                  encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
@@ -134,7 +134,6 @@ class DrQV2Agent:
         self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
-        self.env = env
         self.normalize_obs = normalize_obs
 
         # models
@@ -174,9 +173,6 @@ class DrQV2Agent:
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
-        # if self.normalize_obs:
-        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
         obs = self.encoder(obs.unsqueeze(0))
 
         stddev = utils.schedule(self.stddev_schedule, step)
@@ -263,11 +259,7 @@ class DrQV2Agent:
         batch = next(replay_iter)
         batch = utils.to_torch(batch, self.device)
         obs, action, reward, done, discount, next_obs = self.process_batch(batch)
-
-        # if self.normalize_obs:
-        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
-
+        
         # augment
         obs = self.aug(obs.float())
         next_obs = self.aug(next_obs.float())
