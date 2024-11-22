@@ -12,6 +12,7 @@ class RewardLearner:
         steps_per_epoch=5,
         batch_size=64,
         regularization_coeff=1,
+        regularization_type="l2",
         is_constraint=False,
         lr_scheduler=None,
         loss_transform=None,
@@ -21,6 +22,7 @@ class RewardLearner:
         self.steps_per_epoch = steps_per_epoch
         self.batch_size = batch_size
         self.regularization_coeff = regularization_coeff
+        self.regularization_type = regularization_type
         self.lr_scheduler = lr_scheduler
         self.is_constraint = is_constraint
         self.loss_transform = loss_transform
@@ -70,7 +72,14 @@ class RewardLearner:
             loss = loss_learner.mean() - loss_expert.mean()
             if self.is_constraint:
                 loss = -loss
-            regularization = torch.sum(expert**2)/expert.shape[0]
+            if self.regularization_type == "l2":
+                regularization = torch.sum(expert**2)/expert.shape[0]
+            elif self.regularization_type == "l1":
+                regularization = torch.sum(torch.abs(expert))/expert.shape[0]
+            elif self.regularization_type is None:
+                regularization = 0
+            else:
+                raise NotImplementedError
             loss += self.regularization_coeff * regularization
             
             self.optim.zero_grad()

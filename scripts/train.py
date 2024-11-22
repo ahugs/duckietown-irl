@@ -144,6 +144,8 @@ class Workspace:
                                       self.cfg.env.action_repeat)
         eval_every_step = utils.Every(self.cfg.eval_every_frames,
                                       self.cfg.env.action_repeat)
+        save_snapshot_every_episode = utils.Every(self.cfg.save_snapshot_every_episodes)
+
 
         episode_step, episode_reward = 0, 0
         obs = self.train_env.reset()
@@ -179,10 +181,12 @@ class Workspace:
                                 reward=np.array([0], dtype=np.float32), done=np.array([False]))
                 self.train_video_recorder.init(obs)
                 # try to save snapshot
-                if self.cfg.save_snapshot:
+                if self.cfg.save_snapshot and save_snapshot_every_episode(self.global_episode):
                     self.save_snapshot()
+
                 episode_step = 0
                 episode_reward = 0
+
 
             # try to evaluate
             if eval_every_step(self.global_step):
@@ -228,7 +232,7 @@ class Workspace:
 
 @hydra.main(config_path='cfgs', config_name='config')
 def main(cfg):
-    from train import Workspace as W
+    from scripts.train import Workspace as W
     root_dir = Path.cwd()
     workspace = W(cfg)
     snapshot = root_dir / 'snapshot.pt'

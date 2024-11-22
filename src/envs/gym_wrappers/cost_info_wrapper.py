@@ -21,4 +21,5 @@ class CostInfoWrapper(Wrapper):
             info['dist_from_lane'] = np.nan
             info['angle_from_lane'] = np.nan
         info['collision'] = self.proximity_penalty2(self.cur_pos, self.cur_angle) > 0
+        info['speed'] = self.speed
         return obs, reward, done, info

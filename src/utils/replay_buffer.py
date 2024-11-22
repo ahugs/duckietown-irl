@@ -119,6 +119,14 @@ class ReplayBuffer(IterableDataset):
             if eps_fn.exists():
                 eps_fn.unlink()
         return True
+    
+    def clear_buffer(self):
+        for eps_fn in self._episode_fns:
+            if eps_fn.exists():
+                eps_fn.unlink()
+        self._episode_fns = []
+        self._episodes = dict()
+        self._size = 0
 
     def _try_fetch(self):
         if self._samples_since_last_fetch < self._fetch_every:

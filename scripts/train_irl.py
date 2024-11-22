@@ -21,6 +21,7 @@ import torch
 import wandb
 from omegaconf import OmegaConf
 from dataclasses import dataclass
+import shutil
 
 import src.utils.utils as utils
 from src.utils.logger import Logger
@@ -91,7 +92,6 @@ class Workspace:
         self.reward = hydra.utils.instantiate(self.cfg.reward, optim=self.reward_optim, net=reward_net,
                                               encoder=encoder)
 
-        self.agent.set_reward_network(reward_net)
 
         # create replay buffers
         data_specs = (specs.Array(self.train_env.observation_space.shape, np.uint8, 'observation'),
@@ -165,7 +165,7 @@ class Workspace:
     def eval(self):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
-
+        self.eval_replay_loader.dataset.clear_buffer()
         while eval_until_episode(episode):
             obs = self.eval_env.reset()
             self.eval_replay_storage.add(observation=obs, 
@@ -262,9 +262,7 @@ class Workspace:
                                         action=np.array([np.nan]*self.train_env.action_space.shape[0], dtype=np.float32), 
                                 reward=np.array([0], dtype=np.float32), done=np.array([False]))
                 self.train_video_recorder.init(obs)
-                # try to save snapshot
-                if self.cfg.save_snapshot:
-                    self.save_snapshot()
+
                 episode_step = 0
                 episode_reward = 0
 
@@ -289,8 +287,16 @@ class Workspace:
             episode_step += 1
             self._global_step += 1
 
-    def save_snapshot(self):
-        snapshot = self.work_dir / 'snapshot.pt'
+    def save_snapshot(self, episode):
+        # make copy of buffer
+        buffer_dir = self.work_dir / "buffer"
+        buffer_copy_dir = self.work_dir / f'buffer_{episode}'
+        files = sorted(Path(buffer_dir).glob('*.npz'))
+        for file in files:
+            shutil.copy(str(file), str(Path(buffer_copy_dir) / file.name))
+
+        # save model
+        snapshot = self.work_dir / f'snapshot_{episode}.pt'
         keys_to_save = ['agent', 'timer', '_global_step', '_global_episode']
         payload = {k: self.__dict__[k] for k in keys_to_save}
         with snapshot.open('wb') as f:
