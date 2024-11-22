@@ -254,7 +254,7 @@ class Workspace:
 
                 # try to save snapshot
                 if self.cfg.save_snapshot and save_snapshot_every_episode(self.global_episode):
-                    self.save_snapshot()
+                    self.save_snapshot(self.global_episode)
 
                 # reset env
                 obs = self.train_env.reset()
@@ -291,6 +291,7 @@ class Workspace:
         # make copy of buffer
         buffer_dir = self.work_dir / "buffer"
         buffer_copy_dir = self.work_dir / f'buffer_{episode}'
+        os.mkdir(buffer_copy_dir)
         files = sorted(Path(buffer_dir).glob('*.npz'))
         for file in files:
             shutil.copy(str(file), str(Path(buffer_copy_dir) / file.name))

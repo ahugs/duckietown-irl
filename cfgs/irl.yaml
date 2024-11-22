@@ -51,7 +51,6 @@ agent:
   feature_dim: 50
   stddev_schedule: linear(0.1,0.01,5000000) #${stddev_schedule}
   stddev_clip: 0.02
-  normalize_obs: True
 
 hydra:
   run:
