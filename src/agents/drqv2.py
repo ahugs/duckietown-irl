@@ -126,7 +126,7 @@ class DrQV2Agent:
                  encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 normalize_obs):
+                 is_constraint=False):
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -134,7 +134,7 @@ class DrQV2Agent:
         self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
-        self.normalize_obs = normalize_obs
+        self.is_constraint = is_constraint 
 
         # models
         self.encoder = Encoder(obs_shape).to(device)
@@ -247,6 +247,10 @@ class DrQV2Agent:
                 step_obs = self.encoder(step_obs)
                 input = torch.cat([step_obs, step_action], axis=1)
                 new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
+        else:
+            new_reward = torch.zeros_like(reward).to(self.device)
+        if self.is_constraint:
+            new_reward = -new_reward
         nstep_reward = (discount[:,:-1,...].reshape(reward.shape) * (reward + new_reward)).sum(dim=1).to(torch.float32)
         return obs[:,0,...], action[:,0,...], nstep_reward, done, discount[:,[-1],...].to(torch.float32), next_obs
         

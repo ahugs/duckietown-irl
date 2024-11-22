@@ -213,6 +213,7 @@ class Workspace:
                                       self.cfg.train_env.action_repeat)
         eval_every_episode = utils.Every(self.cfg.eval_every_episodes)
         update_reward_every_episode = utils.Every(self.cfg.update_reward_every_episodes)
+        save_snapshot_every_episode = utils.Every(self.cfg.save_snapshot_every_episodes)
 
         episode_step, episode_reward = 0, 0
         obs = self.train_env.reset()
@@ -249,6 +250,11 @@ class Workspace:
                 if (self.global_step > self.cfg.warmstart_reward_steps) and update_reward_every_episode(self.global_episode):
                     reward_metrics = self.reward.update(self.expert_replay_iter, self.eval_replay_iter)
                     self.logger.log_metrics(reward_metrics, self.global_frame, ty='reward')
+                    self.agent.set_reward_network(self.reward.net)
+
+                # try to save snapshot
+                if self.cfg.save_snapshot and save_snapshot_every_episode(self.global_episode):
+                    self.save_snapshot()
 
                 # reset env
                 obs = self.train_env.reset()

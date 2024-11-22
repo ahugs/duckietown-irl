@@ -31,8 +31,9 @@ COPY requirements.txt requirements.txt
 RUN git clone https://github.com/duckietown/gym-duckietown.git
 
 RUN pip install --no-cache-dir --upgrade pip && \
-    pip install --no-cache-dir -r requirements.txt \ 
-    pip install tianshou --no-deps
+    pip install --no-cache-dir -r requirements.txt 
+    
+RUN pip install --no-cache-dir --no-deps tianshou==0.4.2
 
 RUN pip install --no-cache-dir -e gym-duckietown
 
