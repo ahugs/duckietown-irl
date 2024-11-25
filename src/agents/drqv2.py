@@ -163,6 +163,7 @@ class DrQV2Agent:
 
     def set_reward_network(self, net):
         self.reward_net = net
+        self.reward_concat = None
 
     def train(self, training=True):
         self.training = training
@@ -245,7 +246,12 @@ class DrQV2Agent:
                 step_obs = obs.reshape(-1, *obs.shape[2:])
                 step_action = action.reshape(-1, *action.shape[2:])
                 step_obs = self.encoder(step_obs)
-                input = torch.cat([step_obs, step_action if self.reward_net.preprocess_net.concat 
+                if self.reward_concat is None:
+                    input_size = next(self.reward_net.parameters()).size()
+                    self.reward_concat = False
+                    if step_obs.shape[-1] < input_size[-1]:
+                        self.reward_concat = True
+                input = torch.cat([step_obs, step_action if self.reward_concat 
                                    else torch.tensor([]).to(self.device)], axis=1)
                 new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
         else:

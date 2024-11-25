@@ -28,7 +28,7 @@ class RewardLearner:
         self.loss_transform = loss_transform
         self.encoder = encoder if encoder is not None else torch.nn.Identity()
         self.device = next(self.net.parameters()).device
-
+        self.concat = None
     def update(self, expert_replay_iter, learner_replay_iter):
         self.net.train()
 
@@ -46,12 +46,17 @@ class RewardLearner:
             with torch.no_grad():
                 learner_obs = self.encoder(learner_obs.to(self.device))
 
+            if self.concat is None:
+                input_size = next(self.net.parameters()).size()
+                self.concat = False
+                if expert_obs.shape[-1] < input_size[-1]:
+                    self.concat = True
             expert_input = torch.cat(
-                [expert_obs, expert_action if self.net.preprocess_net.concat else torch.tensor([]).to(self.device)],
+                [expert_obs, expert_action if self.concat else torch.tensor([]).to(self.device)],
                 axis=1,
             )
             learner_input = torch.cat(
-                [learner_obs, learner_action if self.net.preprocess_net.concat else torch.tensor([]).to(self.device)],
+                [learner_obs, learner_action if self.concat else torch.tensor([]).to(self.device)],
                 axis=1,
             )
 
