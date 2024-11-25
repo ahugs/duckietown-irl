@@ -245,7 +245,8 @@ class DrQV2Agent:
                 step_obs = obs.reshape(-1, *obs.shape[2:])
                 step_action = action.reshape(-1, *action.shape[2:])
                 step_obs = self.encoder(step_obs)
-                input = torch.cat([step_obs, step_action], axis=1)
+                input = torch.cat([step_obs, step_action if self.reward_net.preprocess_net.concat 
+                                   else torch.tensor([]).to(self.device)], axis=1)
                 new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
         else:
             new_reward = torch.zeros_like(reward).to(self.device)

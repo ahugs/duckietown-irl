@@ -32,7 +32,7 @@ save_train_video: false
 # experiment
 # agent
 use_joint_encoder: True
-warmstart_reward_steps: 1000000
+warmstart_reward_steps: 500000
 
 agent:
   _target_: src.agents.drqv2.DrQV2Agent

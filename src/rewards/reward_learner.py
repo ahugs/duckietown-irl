@@ -46,16 +46,12 @@ class RewardLearner:
             with torch.no_grad():
                 learner_obs = self.encoder(learner_obs.to(self.device))
 
-            input_size = next(self.net.parameters()).size()
-            concat = False
-            if expert_obs.shape[-1] < input_size[-1]:
-                concat = True
-            expert_input = torch._cat(
-                [expert_obs, expert_action if concat else []],
+            expert_input = torch.cat(
+                [expert_obs, expert_action if self.net.preprocess_net.concat else torch.tensor([]).to(self.device)],
                 axis=1,
             )
             learner_input = torch.cat(
-                [learner_obs, learner_action if concat else []],
+                [learner_obs, learner_action if self.net.preprocess_net.concat else torch.tensor([]).to(self.device)],
                 axis=1,
             )
 
