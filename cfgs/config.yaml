@@ -17,7 +17,7 @@ save_snapshot: false
 replay_buffer_size: 500000
 replay_buffer_num_workers: 1
 nstep: 3
-batch_size: 128
+batch_size: 64
 # misc
 seed: 1
 device: cuda

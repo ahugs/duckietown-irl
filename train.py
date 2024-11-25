@@ -58,9 +58,12 @@ class Workspace:
 
     def setup(self):
         # create logger
-        wandb.tensorboard.patch(root_logdir=f"{self.work_dir}")
+        # wandb.tensorboard.patch(root_logdir=f"{self.work_dir}")
         
-        self.wandb_run = wandb.init(config=OmegaConf.to_container(self.cfg, resolve=True))
+        self.wandb_run = wandb.init(project="duckietown-irl", entity="real-lab")
+        wandb.run.name = "test-drqv2" # + "-" + wandb.run.id
+        wandb.run.save()
+        # self.wandb_run = wandb.init(config=OmegaConf.to_container(self.cfg, resolve=True))
 
         self.logger = Logger(self.work_dir, use_tb=self.cfg.use_tb)
 

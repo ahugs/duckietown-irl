@@ -20,3 +20,10 @@ DrQ-v2 is a model-free off-policy algorithm for image-based continuous control. 
 docker run -e WANDB_API_KEY={WANDB_API_KEY}  -v $(pwd):/workspaces/ --gpus all -it duckietown-irl:latest
 python train.py
 ```
+
+```
+ docker build -f Dockerfile -t duckietown-irl:latest .
+ wandb docker-run --gpus all -v ~/PGM/duckietown-irl:/workspace -it duckietown-irl:latest
+ git clone https://github.com/florenceCloutier/gym-duckietown.git
+ pip install --no-cache-dir -e gym-duckietown 
+```
