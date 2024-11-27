@@ -1,0 +1,8 @@
+{
+    "experiments": [
+        {
+            "command": "python train.py",
+            "cluster": "mila"
+        }
+    ]
+}

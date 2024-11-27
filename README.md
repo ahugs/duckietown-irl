@@ -23,7 +23,7 @@ python train.py
 
 ```
  docker build -f Dockerfile -t duckietown-irl:latest .
- wandb docker-run --gpus all -v ~/PGM/duckietown-irl:/workspace -it duckietown-irl:latest
+ docker run --gpus all -v ~/PGM/duckietown-irl:/workspace -it duckietown-irl:latest
  git clone https://github.com/florenceCloutier/gym-duckietown.git
  pip install --no-cache-dir -e gym-duckietown 
 ```

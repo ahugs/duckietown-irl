@@ -50,5 +50,3 @@ RUN mkdir /scratch
 WORKDIR /workspaces
 ENTRYPOINT ["/runxvfb.sh"]
 CMD ["/bin/bash"]
-
-
