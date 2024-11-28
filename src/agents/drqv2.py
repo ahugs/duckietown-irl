@@ -122,11 +122,11 @@ class Critic(nn.Module):
 
 
 class DrQV2Agent:
-    def __init__(self, env, obs_shape, action_shape, device, actor_lr, critic_lr, 
+    def __init__(self, obs_shape, action_shape, device, actor_lr, critic_lr, 
                  encoder_lr, feature_dim,
                  hidden_dim, critic_target_tau, num_expl_steps,
                  update_every_steps, stddev_schedule, stddev_clip, use_tb,
-                 normalize_obs):
+                 is_constraint=False):
         self.device = device
         self.critic_target_tau = critic_target_tau
         self.update_every_steps = update_every_steps
@@ -134,8 +134,7 @@ class DrQV2Agent:
         self.num_expl_steps = num_expl_steps
         self.stddev_schedule = stddev_schedule
         self.stddev_clip = stddev_clip
-        self.env = env
-        self.normalize_obs = normalize_obs
+        self.is_constraint = is_constraint 
 
         # models
         self.encoder = Encoder(obs_shape).to(device)
@@ -153,11 +152,18 @@ class DrQV2Agent:
         self.actor_opt = torch.optim.Adam(self.actor.parameters(), lr=actor_lr)
         self.critic_opt = torch.optim.Adam(self.critic.parameters(), lr=critic_lr)
 
+        self.reward_net = None
+
         # data augmentation
         self.aug = RandomShiftsAug(pad=4)
 
         self.train()
         self.critic_target.train()
+
+
+    def set_reward_network(self, net):
+        self.reward_net = net
+        self.reward_concat = None
 
     def train(self, training=True):
         self.training = training
@@ -168,9 +174,6 @@ class DrQV2Agent:
 
     def act(self, obs, step, eval_mode):
         obs = torch.as_tensor(obs, device=self.device)
-        # if self.normalize_obs:
-        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
         obs = self.encoder(obs.unsqueeze(0))
 
         stddev = utils.schedule(self.stddev_schedule, step)
@@ -236,6 +239,28 @@ class DrQV2Agent:
 
         return metrics
 
+    def process_batch(self, batch):
+        obs, action, reward, done, discount, next_obs = batch
+        if self.reward_net is not None:
+            with torch.no_grad():
+                step_obs = obs.reshape(-1, *obs.shape[2:])
+                step_action = action.reshape(-1, *action.shape[2:])
+                step_obs = self.encoder(step_obs)
+                if self.reward_concat is None:
+                    input_size = next(self.reward_net.parameters()).size()
+                    self.reward_concat = False
+                    if step_obs.shape[-1] < input_size[-1]:
+                        self.reward_concat = True
+                input = torch.cat([step_obs, step_action if self.reward_concat 
+                                   else torch.tensor([]).to(self.device)], axis=1)
+                new_reward = self.reward_net(input).reshape(-1, *reward.shape[1:])
+        else:
+            new_reward = torch.zeros_like(reward).to(self.device)
+        if self.is_constraint:
+            new_reward = -new_reward
+        nstep_reward = (discount[:,:-1,...].reshape(reward.shape) * (reward + new_reward)).sum(dim=1).to(torch.float32)
+        return obs[:,0,...], action[:,0,...], nstep_reward, done, discount[:,[-1],...].to(torch.float32), next_obs
+        
     def update(self, replay_iter, step):
         metrics = dict()
 
@@ -243,12 +268,9 @@ class DrQV2Agent:
             return metrics
 
         batch = next(replay_iter)
-        obs, action, reward, done, discount, next_obs = utils.to_torch(
-            batch, self.device)
-        # if self.normalize_obs:
-        #     obs = ((obs - torch.tensor(self.env.observation_space.low, device=self.device))\
-        #             / (torch.tensor(self.env.observation_space.high - self.env.observation_space.low, device=self.device)))
-
+        batch = utils.to_torch(batch, self.device)
+        obs, action, reward, done, discount, next_obs = self.process_batch(batch)
+        
         # augment
         obs = self.aug(obs.float())
         next_obs = self.aug(next_obs.float())

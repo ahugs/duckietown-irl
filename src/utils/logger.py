@@ -139,12 +139,14 @@ class Logger(object):
             self._sw.add_scalar(key, value, step)
 
     def log(self, key, value, step):
-        assert key.startswith('train') or key.startswith('eval')
+        assert key.startswith('train') or key.startswith('eval') or key.startswith("reward")
         if type(value) == torch.Tensor:
             value = value.item()
         self._try_sw_log(key, value, step)
-        mg = self._train_mg if key.startswith('train') else self._eval_mg
-        mg.log(key, value)
+        if key.startswith('train'):
+            self._train_mg.log(key, value)
+        elif key.startswith("eval"):
+            self._eval_mg.log(key, value)
 
     def log_metrics(self, metrics, step, ty):
         for key, value in metrics.items():

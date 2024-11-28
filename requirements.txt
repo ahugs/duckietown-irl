@@ -36,3 +36,5 @@ typing-extensions
 torchvision
 tensorboard
 wandb
+h5py
+numba

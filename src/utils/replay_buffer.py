@@ -119,6 +119,14 @@ class ReplayBuffer(IterableDataset):
             if eps_fn.exists():
                 eps_fn.unlink()
         return True
+    
+    def clear_buffer(self):
+        for eps_fn in self._episode_fns:
+            if eps_fn.exists():
+                eps_fn.unlink()
+        self._episode_fns = []
+        self._episodes = dict()
+        self._size = 0
 
     def _try_fetch(self):
         if self._samples_since_last_fetch < self._fetch_every:
@@ -152,18 +160,16 @@ class ReplayBuffer(IterableDataset):
         # add +1 for the first dummy transition
         nstep = min(episode_len(episode), self._nstep)
         idx = np.random.randint(0, episode_len(episode) - nstep + 1) + 1
-        obs = episode['observation'][idx - 1]
-        action = episode['action'][idx]
-        next_obs = episode['observation'][idx + self._nstep - 1]
-        reward = np.zeros_like(episode['reward'][idx])
-        discount = np.ones_like(episode['reward'][idx])
-        for i in range(self._nstep):
-            step_reward = episode['reward'][idx + i]
-            done = episode['done'][idx + i]
-            reward += discount * step_reward
-            discount *= discount * self._discount
-            if done:
-                break
+        obs = episode['observation'][(idx - 1):(idx + nstep -1)]
+        obs.resize((self._nstep,) + obs.shape[1:])
+        next_obs = episode['observation'][idx + nstep -1]
+        action = episode['action'][idx: (idx + nstep)]
+        action.resize((self._nstep,) + action.shape[1:])
+        done = episode['done'][idx + nstep -1]
+        reward = episode['reward'][idx:(idx + nstep)]
+        discount = self._discount ** np.arange(nstep + 1)
+        reward.resize((nstep,) + reward.shape[1:])
+        discount.resize((self._nstep + 1,) + discount.shape[1:])
         return (obs, action, reward, done, discount, next_obs)
 
     def __iter__(self):
@@ -175,6 +181,7 @@ def _worker_init_fn(worker_id):
     seed = np.random.get_state()[1][0] + worker_id
     np.random.seed(seed)
     random.seed(seed)
+
 
 
 def make_replay_loader(replay_dir, max_size, batch_size, num_workers,
