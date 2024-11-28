@@ -126,7 +126,7 @@ def generate_trajectories(cfg):
             ep_invalid_pose += info['invalid_pose']
             video_recorder.record(env)
 
-        np.savez(f'{cfg.save_dir}/episode_{episode}_{len(rewards)}.npz', 
+        np.savez(f'{cfg.save_path}/episode_{episode}_{len(rewards)}.npz', 
                  observation=np.array(observations), action=np.array(actions), 
                           reward=np.array(rewards), done=np.array(dones))
         video_recorder.save(f"episode_{episode}.mp4")

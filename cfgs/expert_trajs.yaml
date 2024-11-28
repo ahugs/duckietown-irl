@@ -1,5 +1,5 @@
 defaults:
-  - env: duckietown
+  - env: duckietown_eval
   - _self_
 
 num_trajs: 50
