@@ -9,7 +9,7 @@ net:
   preprocess_net:
     _target_: "tianshou.utils.net.common.Net"
     hidden_sizes: [64,64]
-    concat: True
+    concat: False
     norm_layer: null
   output_activation: 
     _target_: hydra.utils.get_class
