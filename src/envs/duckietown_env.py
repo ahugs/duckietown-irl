@@ -20,8 +20,8 @@ class DuckietownEnv(Simulator):
         return super()._valid_pose(pos, angle)
                          
     def step(self, action):
-        obs, _, done, info = super().step(action)
-        return obs, 0, done, info
+        obs, reward, done, info = super().step(action)
+        return obs, reward, done, info
     
 def make_duckietown(map_name, action_repeat, seed, image_size=84, episode_length=1000,
                     accept_start_angle_deg=4, wrappers=None, reward_wrappers=None,

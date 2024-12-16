@@ -12,6 +12,28 @@ from matplotlib import pyplot as plt
 
 logger = logging.getLogger(__name__)
 
+class DuckietownDefaultReward(gym.RewardWrapper):
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+
+    def reward(self, reward):
+        if reward == -1000:
+            reward = -10
+        elif reward > 0:
+            reward += 10
+        else:
+            reward += 4
+
+        return reward     
+
+
+class ZeroReward(gym.RewardWrapper):
+    def __init__(self, env: gym.Env):
+        super().__init__(env)
+
+    def reward(self, reward):
+        return 0
+
 class SpeedReward(gym.RewardWrapper):
     def __init__(self, env: gym.Env):
         super().__init__(env)

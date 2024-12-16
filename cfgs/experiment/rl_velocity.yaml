@@ -1,0 +1,4 @@
+# @package _global_
+warmstart_reward_steps: 5000000
+agent:
+  stddev_schedule: linear(0.1,0.01,5000000)

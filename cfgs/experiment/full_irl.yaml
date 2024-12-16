@@ -1,0 +1,13 @@
+# @package _global_
+train_env: 
+  reward_wrappers: null
+reward:
+  net:
+    initialize_zero: false
+    output_activation: 
+      _target_: hydra.utils.get_class
+      path: torch.nn.Identity
+  is_constraint: False
+warmstart_reward_steps: 10000
+agent:
+  stddev_schedule: linear(0.1,0.01,5000000)

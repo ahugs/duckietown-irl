@@ -10,4 +10,5 @@ wrappers:
   - _target_: src.envs.gym_wrappers.FrameStackWrapper
     num_frames: 3
 reward_wrappers:
+  - _target_: src.envs.gym_wrappers.ZeroReward
   - _target_: src.envs.gym_wrappers.LateralVelocityReward
