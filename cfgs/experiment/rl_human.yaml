@@ -4,4 +4,4 @@ train_env:
     - _target_: src.envs.gym_wrappers.DuckietownDefaultReward
 warmstart_reward_steps: 5000000
 agent:
-  stddev_schedule: linear(0.05,0.01,5000000)
+  stddev_schedule: linear(0.1,0.01,5000000)
