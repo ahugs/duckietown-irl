@@ -162,7 +162,7 @@ class Workspace:
             self._expert_replay_iter = iter(self.expert_replay_loader)
         return self._expert_replay_iter
 
-    def eval(self):
+    def eval(self, record_video):
         step, episode, total_reward = 0, 0, 0
         eval_until_episode = utils.Until(self.cfg.num_eval_episodes)
         self.eval_replay_loader.dataset.clear_buffer()
@@ -171,7 +171,7 @@ class Workspace:
             self.eval_replay_storage.add(observation=obs, 
                                     action=np.array([np.nan]*self.train_env.action_space.shape[0], dtype=np.float32), 
                                     reward=np.array([0], dtype=np.float32), done=np.array([False]))
-            self.video_recorder.init(self.eval_env, enabled=(episode == 0))
+            self.video_recorder.init(self.eval_env, enabled=(episode == 0) & record_video)
             done = False
             info_sums =  None
             while not done:
@@ -214,6 +214,7 @@ class Workspace:
         eval_every_episode = utils.Every(self.cfg.eval_every_episodes)
         update_reward_every_episode = utils.Every(self.cfg.update_reward_every_episodes)
         save_snapshot_every_episode = utils.Every(self.cfg.save_snapshot_every_episodes)
+        record_video_every_episode = utils.Every(self.cfg.record_video_every_episodes)
 
         episode_step, episode_reward = 0, 0
         obs = self.train_env.reset()
@@ -245,7 +246,7 @@ class Workspace:
                 if eval_every_episode(self.global_episode):
                     self.logger.log('eval_total_time', self.timer.total_time(),
                                     self.global_frame)
-                    self.eval()
+                    self.eval(record_video_every_episode(self.global_episode))
 
                 if (self.global_step > self.cfg.warmstart_reward_steps) and update_reward_every_episode(self.global_episode):
                     reward_metrics = self.reward.update(self.expert_replay_iter, self.eval_replay_iter)
@@ -289,12 +290,13 @@ class Workspace:
 
     def save_snapshot(self, episode):
         # make copy of buffer
-        buffer_dir = self.work_dir / "buffer"
-        buffer_copy_dir = self.work_dir / f'buffer_{episode}'
-        os.mkdir(buffer_copy_dir)
-        files = sorted(Path(buffer_dir).glob('*.npz'))
-        for file in files:
-            shutil.copy(str(file), str(Path(buffer_copy_dir) / file.name))
+        if self.cfg.snapshot_buffer:
+            buffer_dir = self.work_dir / "buffer"
+            buffer_copy_dir = self.work_dir / f'buffer_{episode}'
+            os.mkdir(buffer_copy_dir)
+            files = sorted(Path(buffer_dir).glob('*.npz'))
+            for file in files:
+                shutil.copy(str(file), str(Path(buffer_copy_dir) / file.name))
 
         # save model
         snapshot = self.work_dir / f'snapshot_{episode}.pt'

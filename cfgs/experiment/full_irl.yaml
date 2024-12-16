@@ -9,3 +9,5 @@ reward:
       path: torch.nn.Identity
   is_constraint: False
 warmstart_reward_steps: 10000
+agent:
+  stddev_schedule: linear(0.05,0.01,5000000)
