@@ -18,7 +18,7 @@ class DuckietownEnv(Simulator):
 
     def __init__(self, *args, **kwargs):
         map_names = None
-        if isinstance(kwargs["map_name"], Iterable):
+        if isinstance(kwargs["map_name"], Iterable) and not isinstance(kwargs["map_name"], str):
             map_names = kwargs["map_name"]
             kwargs['map_name'] = map_names[0]
         super().__init__(*args, **kwargs)
