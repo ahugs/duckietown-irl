@@ -21,3 +21,6 @@ pyproject.toml
 *.png
 *.npz
 *.pt
+*.svg
+*.html
+*.json

@@ -1,6 +1,9 @@
 import gym 
 import numpy as np
 import hydra
+import os
+from collections.abc import Iterable
+from gym_duckietown.utils import get_subdir_path
 from gym_duckietown.simulator import Simulator
 from gym_duckietown.exceptions import NotInLane
 from src.envs.gym_wrappers import FrameStackWrapper, ChannelFirstWrapper, \
@@ -14,7 +17,18 @@ gym.register(
 class DuckietownEnv(Simulator):
 
     def __init__(self, *args, **kwargs):
+        map_names = None
+        if isinstance(kwargs["map_name"], Iterable) and not isinstance(kwargs["map_name"], str):
+            map_names = kwargs["map_name"]
+            kwargs['map_name'] = map_names[0]
         super().__init__(*args, **kwargs)
+
+        if map_names is not None:
+            self.randomize_maps_on_reset = True
+            self.map_names = map_names
+            self.reset()
+            self.last_action = np.array([0, 0])
+            self.wheelVels = np.array([0, 0])
         
     def valid_pose(self, pos, angle):
         return super()._valid_pose(pos, angle)

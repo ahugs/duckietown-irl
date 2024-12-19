@@ -12,6 +12,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from torch.utils.data import IterableDataset
+from copy import deepcopy
 
 
 def episode_len(episode):
@@ -161,15 +162,15 @@ class ReplayBuffer(IterableDataset):
         nstep = min(episode_len(episode), self._nstep)
         idx = np.random.randint(0, episode_len(episode) - nstep + 1) + 1
         obs = episode['observation'][(idx - 1):(idx + nstep -1)]
-        obs.resize((self._nstep,) + obs.shape[1:])
         next_obs = episode['observation'][idx + nstep -1]
         action = episode['action'][idx: (idx + nstep)]
-        action.resize((self._nstep,) + action.shape[1:])
         done = episode['done'][idx + nstep -1]
         reward = episode['reward'][idx:(idx + nstep)]
         discount = self._discount ** np.arange(nstep + 1)
-        reward.resize((nstep,) + reward.shape[1:])
-        discount.resize((self._nstep + 1,) + discount.shape[1:])
+        obs = np.pad(obs, ((0,self._nstep-nstep),*[(0,0)]*(len(obs.shape)-1)), mode='constant')
+        action = np.pad(action, ((0,self._nstep-nstep),*[(0,0)]*(len(action.shape)-1)), mode='constant')
+        reward = np.pad(reward, ((0,self._nstep-nstep),*[(0,0)]*(len(reward.shape)-1)), mode='constant')
+        discount = np.pad(discount, ((0,self._nstep - nstep),*[(0,0)]*(len(discount.shape)-1)), mode='constant')
         return (obs, action, reward, done, discount, next_obs)
 
     def __iter__(self):
