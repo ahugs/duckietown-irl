@@ -68,6 +68,7 @@ If you have trained all four of the policies above, you can reproduce the evalua
 
 ```
 chmod +x run_eval.sh
+docker run -v $(pwd):/workspaces/ --gpus all -it duckietown-irl:latest
 ./run_eval.sh
 ```
 

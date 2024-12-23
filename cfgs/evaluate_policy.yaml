@@ -5,6 +5,9 @@ defaults:
 episodes: 50
 outdir: /workspaces/duckietown-irl/eval_results
 device: "cuda"
+record_video: True
+record_agent_obs_video: False
+record_transform_video: False
 env:
   full_transparency: True
 
@@ -28,3 +31,4 @@ agent:
   stddev_clip: 0.02
 
 policy_path: '/workspaces/duckietown-irl/policies/snapshot_6400.pt'
+

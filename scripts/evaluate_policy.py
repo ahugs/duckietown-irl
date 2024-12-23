@@ -32,9 +32,12 @@ from duckietown_world.svg_drawing import draw_static
 from duckietown_world.world_duckietown.duckiebot import DB18
 from duckietown_world.world_duckietown.map_loading import load_map
 
+from src.utils.video import VideoRecorder
+
 import hydra
 import torch
 from pathlib import Path
+import cv2
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +50,7 @@ class DuckietownWorldEvaluator:
 
 
     def __init__(self, cfg):
+        self.cfg = cfg
         self.map_name = cfg.env.map_name
         # Make testing env
         self.env = hydra.utils.instantiate(cfg.env, _recursive_=False)
@@ -57,19 +61,35 @@ class DuckietownWorldEvaluator:
         for k, v in payload.items():
             self.__dict__[k] = v
 
+        self.work_dir = cfg.outdir
         # Set up evaluator
         # Creates an object 'duckiebot'
         self.ego_name = 'duckiebot'
         self.db = DB18()  # class that gives the appearance
         # load one of the maps
         self.dw = load_map(self.map_name)
+        if cfg.record_video:
+            self.video_recorder = VideoRecorder(
+                Path(self.work_dir) if cfg.record_video else None)
+        if cfg.record_agent_obs_video:
+            self.agent_obs_video_recorder = VideoRecorder(
+                Path(self.work_dir) if cfg.record_agent_obs_video else None, agent_obs=True)
+        if cfg.record_transform_video:
+            def transform(img):
+                height, width, _ = img.shape
+                img = img[:, width // 2 - height // 2:width // 2 + height // 2, :]
+                return cv2.resize(img, (84, 84))
+            
+            self.transform_video_recorder = VideoRecorder(
+                Path(self.work_dir) if cfg.record_transform_video else None, transform=transform)
 
-    def evaluate(self, outdir=None, episodes=None):
+    def evaluate(self, episodes=None):
         """
         Evaluates the agent on the map inicialised in __init__
         :param outdir: Directory for logged outputs (trajectory plots + numeric data)
         :param episodes: Number of evaluation episodes, if None, it is determined based on self.start_poses
         """
+        outdir = self.work_dir
         if (outdir is not None) and (not os.path.exists(outdir)):
             os.makedirs(outdir)
         if episodes is None:
@@ -121,16 +141,35 @@ class DuckietownWorldEvaluator:
         episode_orientations = []
         episode_timestamps = []
         obs = self.env.reset()
+        if self.cfg.record_video:
+            self.video_recorder.init(self.env, enabled=True)
+        if self.cfg.record_agent_obs_video:
+            self.agent_obs_video_recorder.init(self.env, enabled=True)
+        if self.cfg.record_transform_video:
+            self.transform_video_recorder.init(self.env, enabled=True)
+
         done = False
         while not done:
             action = self._compute_action(agent, obs)
             obs, reward, done, info = self.env.step(action)
+            if self.cfg.record_video:
+                self.video_recorder.record(self.env)
+            if self.cfg.record_agent_obs_video:
+                self.agent_obs_video_recorder.record(self.env)
+            if self.cfg.record_transform_video:
+                self.transform_video_recorder.record(self.env)
             cur_pos = np.array([self.env.cur_pos[0], self.env.grid_height * self.env.road_tile_size - self.env.cur_pos[2]]) 
             episode_path.append(cur_pos)
             episode_orientations.append(np.array(self.env.unwrapped.cur_angle))
             episode_timestamps.append(info['Simulator']['timestamp'])
         self.env.unwrapped.start_pose = None
         self.user_tile_start = None
+        if self.cfg.record_video:
+            self.video_recorder.save(f"episode_{i}.mp4")
+        if self.cfg.record_agent_obs_video:
+            self.agent_obs_video_recorder.save(f"episode_{i}_agent_obs.mp4")
+        if self.cfg.record_transform_video:
+            self.transform_video_recorder.save(f"episode_{i}_transform.mp4")
         return episode_path, episode_orientations, episode_timestamps
 
     def _compute_action(self, agent, obs):
@@ -183,7 +222,7 @@ class DuckietownWorldEvaluator:
 @hydra.main(config_path="../cfgs", config_name="evaluate_policy")
 def evaluate(cfg):
     evaluator = DuckietownWorldEvaluator(cfg)
-    evaluator.evaluate(outdir=cfg.outdir, episodes=cfg.episodes)
+    evaluator.evaluate(episodes=cfg.episodes)
 
 if __name__ == "__main__":
     evaluate()

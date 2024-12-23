@@ -9,7 +9,8 @@ import wandb
 
 
 class VideoRecorder:
-    def __init__(self, root_dir, render_size=256, fps=20, wrun=None):
+    def __init__(self, root_dir, render_size=256, fps=20, wrun=None,
+                 agent_obs=False, transform=None):
         if root_dir is not None:
             self.save_dir = root_dir / 'eval_video'
             self.save_dir.mkdir(exist_ok=True)
@@ -20,6 +21,8 @@ class VideoRecorder:
         self.fps = fps
         self.frames = []
         self.wrun = wrun
+        self.agent_obs = agent_obs
+        self.transform = transform
 
     def init(self, env, enabled=True):
         self.frames = []
@@ -32,8 +35,12 @@ class VideoRecorder:
                 frame = env.physics.render(height=self.render_size,
                                            width=self.render_size,
                                            camera_id=0)
+            elif self.agent_obs:
+                frame = env.render_obs()
             else:
                 frame = env.render("rgb_array")
+                if self.transform:
+                    frame = self.transform(frame)
             self.frames.append(frame)
 
     def save(self, file_name):
