@@ -62,6 +62,8 @@ class DuckietownWorldEvaluator:
             self.__dict__[k] = v
 
         self.work_dir = cfg.outdir
+        if not os.path.exists(self.work_dir):
+            os.makedirs(self.work_dir)
         # Set up evaluator
         # Creates an object 'duckiebot'
         self.ego_name = 'duckiebot'
