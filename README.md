@@ -114,8 +114,13 @@ You can deploy an RL policy trained in this repo on a real Duckiebot using the [
     ```
     dts devel build
     ```
-
+5. (If running in the Duckiematrix):
+    ```
+    dts duckiebot virtual start [ROBOT_NAME]
+    dts matrix run --standalone --sandbox
+    dts matrix attach [ROBOT_NAME] map_0/vehicle_0
+    ```
 5. Run:
     ```
-    dts devel run -R {DUCKIE_NAME}
+    dts devel run -R [ROBOT_NAME]
     ```
