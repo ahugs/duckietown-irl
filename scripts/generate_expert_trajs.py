@@ -88,7 +88,8 @@ class PurePursuitExpert:
 @hydra.main(config_path="../cfgs", config_name="expert_trajs")
 def generate_trajectories(cfg):
     # Initialize the environment
-    print(Path(os.getcwd()).parent / Path('temp'))
+    if not os.path.exists(cfg.save_path):
+        os.makedirs(cfg.save_path)
 
     wandb_run = wandb.init(config=OmegaConf.to_container(cfg, resolve=True))
     env = hydra.utils.call(cfg.env, _recursive_=False)    

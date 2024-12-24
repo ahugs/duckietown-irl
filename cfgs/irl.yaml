@@ -56,9 +56,9 @@ agent:
 
 hydra:
   run:
-    dir: ../exp_local/${now:%Y.%m.%d}/${now:%H%M%S}_${hydra.job.override_dirname}
+    dir: exp_local/${now:%Y.%m.%d}/${now:%H%M%S}
   sweep:
-    dir: ../exp/${now:%Y.%m.%d}/${now:%H%M}_${agent_cfg.experiment}
+    dir: exp/${now:%Y.%m.%d}/${now:%H%M}_${agent_cfg.experiment}
     subdir: ${hydra.job.num}
   launcher:
     timeout_min: 4300
@@ -67,4 +67,4 @@ hydra:
     tasks_per_node: 1
     mem_gb: 160
     nodes: 1
-    submitit_folder: ../exp/${now:%Y.%m.%d}/${now:%H%M%S}_${agent_cfg.experiment}/.slurm
+    submitit_folder: exp/${now:%Y.%m.%d}/${now:%H%M%S}_${agent_cfg.experiment}/.slurm
